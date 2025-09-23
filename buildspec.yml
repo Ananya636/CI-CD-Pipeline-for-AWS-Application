@@ -11,9 +11,10 @@ phases:
     commands:
       - echo Building React app with Vite...
       - npm run build
+
 artifacts:
   files:
-    - appspec.yml
-    - scripts/**/*
     - dist/**/*
+    - scripts/**/*
   discard-paths: no
+
