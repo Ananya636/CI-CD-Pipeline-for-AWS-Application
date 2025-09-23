@@ -205,19 +205,19 @@ Resources:
           Type: KEY_AND_VALUE
 
   ### CodeBuild ###
-  QuizAppCodeBuildProject:
-    Type: AWS::CodeBuild::Project
-    Properties:
-      Name: QuizAppCodeBuild
-      Source:
-        Type: CODEPIPELINE
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:7.0
-        Type: LINUX_CONTAINER
-      ServiceRole: !GetAtt QuizAppCodeBuildServiceRole.Arn
-      Artifacts:
-        Type: CODEPIPELINE
+ QuizAppCodeBuildProject:
+  Type: AWS::CodeBuild::Project
+  Properties:
+    Name: QuizAppCodeBuild
+    Source:
+      Type: CODEPIPELINE
+    Environment:
+      ComputeType: BUILD_GENERAL1_SMALL
+      Image: aws/codebuild/standard:7.0
+      Type: LINUX_CONTAINER
+    ServiceRole: !GetAtt QuizAppCodeBuildServiceRole.Arn
+    Artifacts:
+      Type: CODEPIPELINE
 
   ### CodePipeline ###
   QuizAppPipeline:
@@ -276,4 +276,5 @@ Outputs:
   CodePipelineName:
     Description: Name of the CodePipeline
     Value: !Ref QuizAppPipeline
+
 
