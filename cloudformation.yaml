@@ -171,7 +171,7 @@ Resources:
       SecurityGroupIds:
         - !Ref QuizAppSecurityGroup
       IamInstanceProfile: !Ref QuizAppInstanceProfile
-      KeyName: ProjectKeyPair
+      KeyName: QuizAppKey
       Tags:
         - Key: Name
           Value: QuizAppEC2
