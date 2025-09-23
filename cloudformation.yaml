@@ -142,7 +142,7 @@ Resources:
         - Key: Name
           Value: QuizAppCodeBuildRole
 
-  # CodePipeline Role
+  # CodePipeline Role (fixed policy name)
   QuizAppCodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -154,7 +154,7 @@ Resources:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodePipelineFullAccess
+        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
       Tags:
