@@ -81,6 +81,8 @@ Resources:
           CidrIp: 0.0.0.0/0
 
   ### IAM Roles ###
+
+  # EC2 Role
   QuizAppEC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -105,6 +107,7 @@ Resources:
       Roles:
         - !Ref QuizAppEC2Role
 
+  # CodeDeploy Role
   QuizAppCodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -120,6 +123,43 @@ Resources:
       Tags:
         - Key: Name
           Value: QuizAppCodeDeployRole
+
+  # CodeBuild Role
+  QuizAppCodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Tags:
+        - Key: Name
+          Value: QuizAppCodeBuildRole
+
+  # CodePipeline Role
+  QuizAppCodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodePipelineFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
+      Tags:
+        - Key: Name
+          Value: QuizAppCodePipelineRole
 
   ### EC2 Instance ###
   QuizAppInstance:
@@ -177,7 +217,7 @@ Resources:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:7.0
         Type: LINUX_CONTAINER
-      ServiceRole: !GetAtt QuizAppEC2Role.Arn
+      ServiceRole: !GetAtt QuizAppCodeBuildServiceRole.Arn
       Artifacts:
         Type: CODEPIPELINE
 
@@ -186,7 +226,7 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: QuizAppPipeline
-      RoleArn: !GetAtt QuizAppEC2Role.Arn
+      RoleArn: !GetAtt QuizAppCodePipelineServiceRole.Arn
       Stages:
         - Name: Source
           Actions:
@@ -238,3 +278,4 @@ Outputs:
   CodePipelineName:
     Description: Name of the CodePipeline
     Value: !Ref QuizAppPipeline
+
