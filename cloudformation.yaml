@@ -1,7 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "VPC + EC2 + IAM + Security Group + CodeDeploy setup for Quiz App CI/CD"
+Description: "Full CI/CD setup for Vite React Quiz App with EC2, CodeBuild, CodeDeploy, CodePipeline"
+
+Parameters:
+  GitHubToken:
+    Type: String
+    Description: GitHub Personal Access Token for CodePipeline
 
 Resources:
+
+  ### VPC & Networking ###
   QuizAppVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -57,6 +64,7 @@ Resources:
       SubnetId: !Ref QuizAppPublicSubnet
       RouteTableId: !Ref QuizAppRouteTable
 
+  ### Security Group ###
   QuizAppSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -72,6 +80,7 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
 
+  ### IAM Roles ###
   QuizAppEC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -96,26 +105,6 @@ Resources:
       Roles:
         - !Ref QuizAppEC2Role
 
-  QuizAppInstance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: ami-01b6d88af12965bb6   
-      InstanceType: t2.micro
-      SubnetId: !Ref QuizAppPublicSubnet
-      SecurityGroupIds:
-        - !Ref QuizAppSecurityGroup
-      IamInstanceProfile: !Ref QuizAppInstanceProfile
-      KeyName: ProjectKeyPair
-      Tags:
-        - Key: Name
-          Value: QuizAppEC2
-
-  QuizAppCodeDeployApp:
-    Type: AWS::CodeDeploy::Application
-    Properties:
-      ApplicationName: QuizAppCodeDeploy
-      ComputePlatform: Server
-
   QuizAppCodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -132,6 +121,37 @@ Resources:
         - Key: Name
           Value: QuizAppCodeDeployRole
 
+  ### EC2 Instance ###
+  QuizAppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-01b6d88af12965bb6   # Amazon Linux 2023
+      InstanceType: t2.micro
+      SubnetId: !Ref QuizAppPublicSubnet
+      SecurityGroupIds:
+        - !Ref QuizAppSecurityGroup
+      IamInstanceProfile: !Ref QuizAppInstanceProfile
+      KeyName: ProjectKeyPair
+      Tags:
+        - Key: Name
+          Value: QuizAppEC2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf install -y nginx git
+          systemctl enable nginx
+          systemctl start nginx
+          curl -sL https://rpm.nodesource.com/setup_18.x | bash -
+          dnf install -y nodejs
+          npm install -g serve
+
+  ### CodeDeploy ###
+  QuizAppCodeDeployApp:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: QuizAppCodeDeploy
+      ComputePlatform: Server
+
   QuizAppDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     Properties:
@@ -144,24 +164,77 @@ Resources:
           Value: QuizAppEC2
           Type: KEY_AND_VALUE
 
+  ### CodeBuild ###
+  QuizAppCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: QuizAppCodeBuild
+      Source:
+        Type: GITHUB
+        Location: https://github.com/Ananya636/CI-CD-Pipeline-for-AWS-Application
+        BuildSpec: buildspec.yml
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+      ServiceRole: !GetAtt QuizAppEC2Role.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+
+  ### CodePipeline ###
+  QuizAppPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: QuizAppPipeline
+      RoleArn: !GetAtt QuizAppEC2Role.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHub_Source
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: Ananya636
+                Repo: CI-CD-Pipeline-for-AWS-Application
+                Branch: main
+                OAuthToken: !Ref GitHubToken
+        - Name: Build
+          Actions:
+            - Name: CodeBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref QuizAppCodeBuildProject
+        - Name: Deploy
+          Actions:
+            - Name: CodeDeploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: 1
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ApplicationName: !Ref QuizAppCodeDeployApp
+                DeploymentGroupName: !Ref QuizAppDeploymentGroup
+
 Outputs:
-  VPCId:
-    Description: VPC ID
-    Value: !Ref QuizAppVPC
-
-  SubnetId:
-    Description: Public Subnet ID
-    Value: !Ref QuizAppPublicSubnet
-
   InstancePublicIP:
     Description: Public IP of EC2 instance
     Value: !GetAtt QuizAppInstance.PublicIp
-
-  CodeDeployApp:
-    Description: Name of the CodeDeploy Application
-    Value: !Ref QuizAppCodeDeployApp
-
-  CodeDeployDeploymentGroup:
-    Description: Name of the Deployment Group
-    Value: !Ref QuizAppDeploymentGroup
-
+  CodePipelineName:
+    Description: Name of the CodePipeline
+    Value: !Ref QuizAppPipeline
