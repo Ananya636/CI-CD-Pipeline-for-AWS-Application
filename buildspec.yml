@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 18
+      nodejs: 20
     commands:
       - echo Installing dependencies...
       - npm ci
@@ -11,10 +11,9 @@ phases:
     commands:
       - echo Building React app with Vite...
       - npm run build
-      - echo "Build finished. Listing files in current directory:"
-      - ls -R
+
 artifacts:
+  base-directory: dist   # <--- add this line
   files:
-    - dist/**/*
-  discard-paths: no
+    - '**/*'
 
