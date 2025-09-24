@@ -1,12 +1,26 @@
-AWSTemplateFormatVersion: '2010-09-09'AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: "Full CI/CD setup for Vite React Quiz App with EC2, CodeBuild, CodeDeploy, CodePipeline"
 
 Parameters:
   GitHubToken:
     Type: String
     Description: GitHub Personal Access Token for CodePipeline
+    NoEcho: true
+
+  EC2KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair for SSH access
 
 Resources:
+
+  ### S3 Bucket for CodePipeline Artifacts ###
+  QuizAppPipelineArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-pipeline-artifacts'
 
   ### VPC & Networking ###
   QuizAppVPC:
@@ -45,7 +59,6 @@ Resources:
 
   QuizAppRouteTable:
     Type: AWS::EC2::RouteTable
-    DependsOn: QuizAppVPC
     Properties:
       VpcId: !Ref QuizAppVPC
       Tags:
@@ -54,7 +67,6 @@ Resources:
 
   QuizAppRoute:
     Type: AWS::EC2::Route
-    DependsOn: AttachGateway
     Properties:
       RouteTableId: !Ref QuizAppRouteTable
       DestinationCidrBlock: 0.0.0.0/0
@@ -83,8 +95,6 @@ Resources:
           CidrIp: 0.0.0.0/0
 
   ### IAM Roles ###
-
-  # EC2 Role
   QuizAppEC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -109,7 +119,6 @@ Resources:
       Roles:
         - !Ref QuizAppEC2Role
 
-  # CodeDeploy Role
   QuizAppCodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -126,7 +135,6 @@ Resources:
         - Key: Name
           Value: QuizAppCodeDeployRole
 
-  # CodeBuild Role
   QuizAppCodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -137,14 +145,27 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildArtifactsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetBucketAcl
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}/*'
+                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}'
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
       Tags:
         - Key: Name
           Value: QuizAppCodeBuildRole
 
-  # CodePipeline Role
   QuizAppCodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -155,37 +176,76 @@ Resources:
             Principal:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-        - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
+      Policies:
+        - PolicyName: CodePipelineServicePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetBucketAcl
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}'
+                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}/*'
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !GetAtt QuizAppCodeBuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+                  - codedeploy:GetApplicationRevision
+                Resource: "*"
       Tags:
         - Key: Name
           Value: QuizAppCodePipelineRole
 
   ### EC2 Instance ###
+  LatestAmi:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
   QuizAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-01b6d88af12965bb6
+      ImageId: !Ref LatestAmi
       InstanceType: t2.micro
       SubnetId: !Ref QuizAppPublicSubnet
       SecurityGroupIds:
         - !Ref QuizAppSecurityGroup
       IamInstanceProfile: !Ref QuizAppInstanceProfile
-      KeyName: QuizAppKey
+      KeyName: !Ref EC2KeyName
       Tags:
         - Key: Name
           Value: QuizAppEC2
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          dnf install -y nginx git
+          yum update -y
+          amazon-linux-extras enable nginx1
+          yum install -y nginx git ruby wget
           systemctl enable nginx
           systemctl start nginx
+          
           curl -sL https://rpm.nodesource.com/setup_18.x | bash -
-          dnf install -y nodejs
+          yum install -y nodejs
           npm install -g serve
+
+          # Install CodeDeploy agent
+          cd /tmp
+          wget https://aws-codedeploy-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/latest/install
+          chmod +x ./install
+          ./install auto
+          systemctl enable codedeploy-agent
+          systemctl start codedeploy-agent
 
   ### CodeDeploy ###
   QuizAppCodeDeployApp:
@@ -227,6 +287,9 @@ Resources:
     Properties:
       Name: QuizAppPipeline
       RoleArn: !GetAtt QuizAppCodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref QuizAppPipelineArtifactsBucket
       Stages:
         - Name: Source
           Actions:
@@ -278,4 +341,3 @@ Outputs:
   CodePipelineName:
     Description: Name of the CodePipeline
     Value: !Ref QuizAppPipeline
-
