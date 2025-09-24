@@ -11,6 +11,11 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Name of an existing EC2 KeyPair for SSH access
 
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Description: Latest Amazon Linux 2 AMI
+
 Resources:
 
   ### S3 Bucket for CodePipeline Artifacts ###
@@ -209,14 +214,10 @@ Resources:
           Value: QuizAppCodePipelineRole
 
   ### EC2 Instance ###
-  LatestAmi:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
-
   QuizAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref LatestAmi
+      ImageId: !Ref LatestAmiId
       InstanceType: t2.micro
       SubnetId: !Ref QuizAppPublicSubnet
       SecurityGroupIds:
@@ -341,3 +342,4 @@ Outputs:
   CodePipelineName:
     Description: Name of the CodePipeline
     Value: !Ref QuizAppPipeline
+
