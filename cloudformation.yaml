@@ -163,8 +163,18 @@ Resources:
                   - s3:GetBucketAcl
                   - s3:ListBucket
                 Resource:
-                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}/*'
-                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}'
+                  - !Sub "arn:aws:s3:::${QuizAppPipelineArtifactsBucket}/*"
+                  - !Sub "arn:aws:s3:::${QuizAppPipelineArtifactsBucket}"
+        - PolicyName: CodeBuildCloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
       Tags:
@@ -194,8 +204,8 @@ Resources:
                   - s3:GetBucketAcl
                   - s3:ListBucket
                 Resource:
-                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}'
-                  - !Sub 'arn:aws:s3:::${QuizAppPipelineArtifactsBucket}/*'
+                  - !Sub "arn:aws:s3:::${QuizAppPipelineArtifactsBucket}"
+                  - !Sub "arn:aws:s3:::${QuizAppPipelineArtifactsBucket}/*"
               - Effect: Allow
                 Action:
                   - codebuild:StartBuild
