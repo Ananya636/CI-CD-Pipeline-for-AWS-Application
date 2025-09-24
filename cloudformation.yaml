@@ -246,8 +246,6 @@ Resources:
           systemctl enable nginx
           systemctl start nginx
           
-          curl -sL https://rpm.nodesource.com/setup_18.x | bash -
-          yum install -y nodejs
           npm install -g serve
 
           # Install CodeDeploy agent
@@ -286,7 +284,7 @@ Resources:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:7.0
+        Image: aws/codebuild/standard:8.0   # <-- Updated image with Node 20+
         Type: LINUX_CONTAINER
       ServiceRole: !GetAtt QuizAppCodeBuildServiceRole.Arn
       Artifacts:
