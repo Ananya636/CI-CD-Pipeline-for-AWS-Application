@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'AWSTemplateFormatVersion: '2010-09-09'
 Description: "Full CI/CD setup for Vite React Quiz App with EC2, CodeBuild, CodeDeploy, CodePipeline"
 
 Parameters:
@@ -45,6 +45,7 @@ Resources:
 
   QuizAppRouteTable:
     Type: AWS::EC2::RouteTable
+    DependsOn: QuizAppVPC
     Properties:
       VpcId: !Ref QuizAppVPC
       Tags:
@@ -53,6 +54,7 @@ Resources:
 
   QuizAppRoute:
     Type: AWS::EC2::Route
+    DependsOn: AttachGateway
     Properties:
       RouteTableId: !Ref QuizAppRouteTable
       DestinationCidrBlock: 0.0.0.0/0
@@ -142,7 +144,7 @@ Resources:
         - Key: Name
           Value: QuizAppCodeBuildRole
 
-  # CodePipeline Role (fixed policy name)
+  # CodePipeline Role
   QuizAppCodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -205,19 +207,19 @@ Resources:
           Type: KEY_AND_VALUE
 
   ### CodeBuild ###
- QuizAppCodeBuildProject:
-  Type: AWS::CodeBuild::Project
-  Properties:
-    Name: QuizAppCodeBuild
-    Source:
-      Type: CODEPIPELINE
-    Environment:
-      ComputeType: BUILD_GENERAL1_SMALL
-      Image: aws/codebuild/standard:7.0
-      Type: LINUX_CONTAINER
-    ServiceRole: !GetAtt QuizAppCodeBuildServiceRole.Arn
-    Artifacts:
-      Type: CODEPIPELINE
+  QuizAppCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: QuizAppCodeBuild
+      Source:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+      ServiceRole: !GetAtt QuizAppCodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
 
   ### CodePipeline ###
   QuizAppPipeline:
@@ -276,5 +278,4 @@ Outputs:
   CodePipelineName:
     Description: Name of the CodePipeline
     Value: !Ref QuizAppPipeline
-
 
